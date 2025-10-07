@@ -23,6 +23,11 @@ interface AchievementPopupProps {
 export default function AchievementPopup({ achievement, onClose }: AchievementPopupProps) {
   const [isVisible, setIsVisible] = useState(false);
 
+  const handleClose = () => {
+    setIsVisible(false);
+    setTimeout(onClose, 300);
+  };
+
   useEffect(() => {
     if (achievement) {
       setIsVisible(true);
@@ -31,12 +36,7 @@ export default function AchievementPopup({ achievement, onClose }: AchievementPo
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [achievement]);
-
-  const handleClose = () => {
-    setIsVisible(false);
-    setTimeout(onClose, 300);
-  };
+  }, [achievement, handleClose]);
 
   if (!achievement) return null;
 

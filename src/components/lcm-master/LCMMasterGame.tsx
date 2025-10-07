@@ -314,7 +314,7 @@ export default function LCMMasterGame() {
       <CharacterCompanion
         mood={characterMood}
         message={characterMessage}
-        character={playerProgress.selectedCharacter as any}
+        character={playerProgress.selectedCharacter}
         position="right"
         size="medium"
       />

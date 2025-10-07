@@ -108,6 +108,6 @@ export interface PlayerProgress {
   streak: number;
   totalStars: number;
   achievements: Achievement[];
-  unlockedCharacters: string[];
-  selectedCharacter: string;
+  unlockedCharacters: ('buddy' | 'star' | 'robot' | 'wizard')[];
+  selectedCharacter: 'buddy' | 'star' | 'robot' | 'wizard';
 }
