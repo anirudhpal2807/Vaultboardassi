@@ -42,11 +42,16 @@ export interface GameState {
 }
 
 export interface Achievement {
-  id: number;
+  id: string;
   name: string;
+  title: string;
   unlocked: boolean;
-  description?: string;
-  icon?: string;
+  description: string;
+  icon: string;
+  reward: {
+    coins?: number;
+    gems?: number;
+  };
 }
 
 // Query types
@@ -80,4 +85,29 @@ export interface VisualData {
   multiples2: number[];
   commonMultiples: number[];
   lcm: number;
+}
+
+export interface Level {
+  id: number;
+  name: string;
+  theme: string;
+  emoji: string;
+  unlocked: boolean;
+  completed: boolean;
+  stars: number;
+  maxStars: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+  questionsCount: number;
+  minScore?: number;
+}
+
+export interface PlayerProgress {
+  currentLevel: number;
+  coins: number;
+  gems: number;
+  streak: number;
+  totalStars: number;
+  achievements: Achievement[];
+  unlockedCharacters: string[];
+  selectedCharacter: string;
 }

@@ -5,16 +5,24 @@ import PlayCircleFilledOutlinedIcon from '@mui/icons-material/PlayCircleFilledOu
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined';
+import MapIcon from '@mui/icons-material/Map';
 import NumberInputForm from './NumberInputForm';
 import VisualMultiplesDisplay from './VisualMultiplesDisplay';
 import QuizMode from './QuizMode';
 import ScoreDisplay from './ScoreDisplay';
 import SettingsDialog from './SettingsDialog';
 import ConfettiEffect from './ConfettiEffect';
+import LevelMap, { type Level } from './LevelMap';
+import CharacterCompanion, { type CharacterMood } from './CharacterCompanion';
+import RewardSystem from './RewardSystem';
+import AchievementPopup from './AchievementPopup';
+import AnimatedBackground from './AnimatedBackground';
+import HintSystem from './HintSystem';
+import DragDropGame from './DragDropGame';
 import { calculateLCM, getMultiples, findCommonMultiples } from '@/utils/lcmCalculator';
-import type { QuizQuestion } from '@/types/schema';
+import type { QuizQuestion, Achievement, PlayerProgress } from '@/types/schema';
 
-type GameMode = 'menu' | 'learn' | 'quiz';
+type GameMode = 'menu' | 'learn' | 'quiz' | 'levels' | 'minigame';
 
 export default function LCMMasterGame() {
   const [gameMode, setGameMode] = useState<GameMode>('menu');
@@ -42,6 +50,36 @@ export default function LCMMasterGame() {
   
   // Animation state
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // New gamification state
+  const [levels, setLevels] = useState<Level[]>([
+    { id: 1, name: 'Space Explorer', theme: 'space', emoji: '🚀', unlocked: true, completed: false, stars: 0, maxStars: 3, difficulty: 'easy', questionsCount: 5 },
+    { id: 2, name: 'Ocean Adventure', theme: 'underwater', emoji: '🌊', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'easy', questionsCount: 5 },
+    { id: 3, name: 'Jungle Quest', theme: 'jungle', emoji: '🦁', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'medium', questionsCount: 7 },
+    { id: 4, name: 'Candy Land', theme: 'candy', emoji: '🍭', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'medium', questionsCount: 7 },
+    { id: 5, name: 'Desert Safari', theme: 'desert', emoji: '🐪', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'medium', questionsCount: 8 },
+    { id: 6, name: 'Arctic Expedition', theme: 'arctic', emoji: '🐧', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'hard', questionsCount: 10 },
+    { id: 7, name: 'Volcano Valley', theme: 'volcano', emoji: '🌋', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'hard', questionsCount: 10 },
+    { id: 8, name: 'Magic Garden', theme: 'garden', emoji: '🌺', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'hard', questionsCount: 12 },
+    { id: 9, name: 'Royal Castle', theme: 'castle', emoji: '👑', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'hard', questionsCount: 12 },
+    { id: 10, name: 'Beach Paradise', theme: 'beach', emoji: '🏝️', unlocked: false, completed: false, stars: 0, maxStars: 3, difficulty: 'hard', questionsCount: 15 }
+  ]);
+  const [currentLevel, setCurrentLevel] = useState<Level | null>(null);
+  const [playerProgress, setPlayerProgress] = useState<PlayerProgress>({
+    currentLevel: 1,
+    coins: 100,
+    gems: 5,
+    streak: 3,
+    totalStars: 0,
+    achievements: [],
+    unlockedCharacters: ['buddy'],
+    selectedCharacter: 'buddy'
+  });
+  const [characterMood, setCharacterMood] = useState<CharacterMood>('happy');
+  const [characterMessage, setCharacterMessage] = useState<string>('');
+  const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
+  const [hintsRemaining, setHintsRemaining] = useState(3);
+  const [showMiniGame, setShowMiniGame] = useState(false);
 
   // Generate quiz questions
   const generateQuizQuestions = (count: number = 10): QuizQuestion[] => {
@@ -129,10 +167,26 @@ export default function LCMMasterGame() {
     
     if (isCorrect) {
       const points = difficulty === 'easy' ? 50 : difficulty === 'medium' ? 100 : 150;
+      const coins = difficulty === 'easy' ? 10 : difficulty === 'medium' ? 20 : 30;
+      
       setScore(prev => prev + points);
       setCorrectAnswers(prev => prev + 1);
+      setPlayerProgress(prev => ({ ...prev, coins: prev.coins + coins }));
       setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
+      setCharacterMood('celebrating');
+      setCharacterMessage('Amazing! You got it right! 🎉');
+      
+      setTimeout(() => {
+        setShowConfetti(false);
+        setCharacterMessage('');
+      }, 3000);
+
+      // Check for achievements
+      checkAchievements(correctAnswers + 1);
+    } else {
+      setCharacterMood('encouraging');
+      setCharacterMessage('Don\'t worry! Keep trying! 💪');
+      setTimeout(() => setCharacterMessage(''), 3000);
     }
   };
 
@@ -148,7 +202,98 @@ export default function LCMMasterGame() {
     if (score > highScore) {
       setHighScore(score);
     }
-    setGameMode('menu');
+
+    // Calculate stars based on performance
+    const percentage = (correctAnswers / quizQuestions.length) * 100;
+    const stars = percentage >= 90 ? 3 : percentage >= 70 ? 2 : percentage >= 50 ? 1 : 0;
+
+    // Update level completion
+    if (currentLevel) {
+      const updatedLevels = levels.map(lvl => {
+        if (lvl.id === currentLevel.id) {
+          return { ...lvl, completed: true, stars: Math.max(lvl.stars, stars) };
+        }
+        if (lvl.id === currentLevel.id + 1) {
+          return { ...lvl, unlocked: true };
+        }
+        return lvl;
+      });
+      setLevels(updatedLevels);
+      setPlayerProgress(prev => ({ ...prev, totalStars: prev.totalStars + stars }));
+    }
+
+    setCharacterMood('celebrating');
+    setCharacterMessage(`Level complete! You earned ${stars} stars! ⭐`);
+    
+    setTimeout(() => {
+      setGameMode('levels');
+      setCharacterMessage('');
+    }, 3000);
+  };
+
+  const checkAchievements = (correctCount: number) => {
+    const achievements: Achievement[] = [];
+
+    if (correctCount === 1 && !playerProgress.achievements.find(a => a.id === 'first_correct')) {
+      achievements.push({
+        id: 'first_correct',
+        name: 'First Steps',
+        title: 'First Correct Answer',
+        description: 'You got your first answer correct!',
+        icon: '🎯',
+        unlocked: true,
+        reward: { coins: 50 }
+      });
+    }
+
+    if (correctCount === 5 && !playerProgress.achievements.find(a => a.id === 'five_streak')) {
+      achievements.push({
+        id: 'five_streak',
+        name: 'On Fire',
+        title: '5 Correct Answers',
+        description: 'You answered 5 questions correctly!',
+        icon: '🔥',
+        unlocked: true,
+        reward: { coins: 100, gems: 1 }
+      });
+    }
+
+    if (achievements.length > 0) {
+      const newAch = achievements[0];
+      setNewAchievement(newAch);
+      setPlayerProgress(prev => ({
+        ...prev,
+        achievements: [...prev.achievements, newAch],
+        coins: prev.coins + (newAch.reward.coins || 0),
+        gems: prev.gems + (newAch.reward.gems || 0)
+      }));
+    }
+  };
+
+  const handleLevelSelect = (selectedLevel: Level) => {
+    setCurrentLevel(selectedLevel);
+    setDifficulty(selectedLevel.difficulty);
+    const questions = generateQuizQuestions(selectedLevel.questionsCount);
+    setQuizQuestions(questions);
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setCorrectAnswers(0);
+    setTimeRemaining(selectedLevel.questionsCount * 30);
+    setHintsRemaining(3);
+    setGameMode('quiz');
+    setCharacterMood('excited');
+    setCharacterMessage(`Let's start ${selectedLevel.name}! 🚀`);
+    setTimeout(() => setCharacterMessage(''), 3000);
+  };
+
+  const handleUseHint = () => {
+    if (playerProgress.coins >= 20) {
+      setHintsRemaining(prev => prev - 1);
+      setPlayerProgress(prev => ({ ...prev, coins: prev.coins - 20 }));
+      setCharacterMood('thinking');
+      setCharacterMessage('Here\'s a hint to help you! 💡');
+      setTimeout(() => setCharacterMessage(''), 3000);
+    }
   };
 
   const resetGame = () => {
@@ -159,36 +304,69 @@ export default function LCMMasterGame() {
     setMultiples1([]);
     setMultiples2([]);
     setCommonMultiples([]);
+    setCurrentLevel(null);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 p-4 md:p-8">
+    <div className="min-h-screen p-4 md:p-8 relative">
+      <AnimatedBackground theme={currentLevel?.theme || 'default'} />
       <ConfettiEffect active={showConfetti} />
+      <CharacterCompanion
+        mood={characterMood}
+        message={characterMessage}
+        character={playerProgress.selectedCharacter as any}
+        position="right"
+        size="medium"
+      />
+      <AchievementPopup
+        achievement={newAchievement}
+        onClose={() => setNewAchievement(null)}
+      />
       
       {/* Header */}
       <header className="max-w-7xl mx-auto mb-8">
-        <div className="bg-white rounded-2xl shadow-lg p-6 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={resetGame}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <HomeOutlinedIcon className="w-6 h-6 text-purple-600" />
-            </button>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
-                LCM Master
-              </h1>
-              <p className="text-sm text-gray-600">Learn & Play with Numbers!</p>
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg p-6">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={resetGame}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <HomeOutlinedIcon className="w-6 h-6 text-purple-600" />
+              </button>
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+                  LCM Master
+                </h1>
+                <p className="text-sm text-gray-600">Learn & Play with Numbers!</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {gameMode !== 'menu' && gameMode !== 'levels' && (
+                <button
+                  onClick={() => setGameMode('levels')}
+                  className="p-3 hover:bg-purple-100 rounded-full transition-colors"
+                >
+                  <MapIcon className="w-6 h-6 text-purple-600" />
+                </button>
+              )}
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="p-3 hover:bg-purple-100 rounded-full transition-colors"
+              >
+                <SettingsOutlinedIcon className="w-6 h-6 text-purple-600" />
+              </button>
             </div>
           </div>
-          
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-3 hover:bg-purple-100 rounded-full transition-colors"
-          >
-            <SettingsOutlinedIcon className="w-6 h-6 text-purple-600" />
-          </button>
+
+          {/* Rewards display */}
+          <RewardSystem
+            coins={playerProgress.coins}
+            gems={playerProgress.gems}
+            streak={playerProgress.streak}
+            badges={playerProgress.achievements.map(a => a.name)}
+          />
         </div>
       </header>
 
@@ -197,18 +375,18 @@ export default function LCMMasterGame() {
         {gameMode === 'menu' && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
             <div className="text-center space-y-4">
-              <h2 className="text-4xl md:text-5xl font-bold text-gray-800">
+              <h2 className="text-4xl md:text-5xl font-bold text-white drop-shadow-lg">
                 Welcome to LCM Master!
               </h2>
-              <p className="text-xl text-gray-600">
+              <p className="text-xl text-white/90 drop-shadow">
                 Choose your adventure
               </p>
             </div>
             
-            <div className="grid md:grid-cols-2 gap-6 w-full max-w-2xl">
+            <div className="grid md:grid-cols-3 gap-6 w-full max-w-4xl">
               <button
                 onClick={() => setGameMode('learn')}
-                className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-2xl transform hover:scale-105 transition-all group"
+                className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg p-8 hover:shadow-2xl transform hover:scale-105 transition-all group"
               >
                 <div className="text-6xl mb-4">📚</div>
                 <h3 className="text-2xl font-bold text-purple-700 mb-2">Learn Mode</h3>
@@ -218,17 +396,36 @@ export default function LCMMasterGame() {
               </button>
               
               <button
-                onClick={startQuiz}
+                onClick={() => setGameMode('levels')}
                 className="bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-2xl shadow-lg p-8 hover:shadow-2xl transform hover:scale-105 transition-all group"
               >
-                <PlayCircleFilledOutlinedIcon className="w-16 h-16 mx-auto mb-4" />
-                <h3 className="text-2xl font-bold mb-2">Quiz Mode</h3>
+                <MapIcon className="w-16 h-16 mx-auto mb-4" />
+                <h3 className="text-2xl font-bold mb-2">Level Map</h3>
                 <p className="opacity-90">
-                  Test your skills and earn points!
+                  Choose your level and start the adventure!
+                </p>
+              </button>
+
+              <button
+                onClick={startQuiz}
+                className="bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-2xl shadow-lg p-8 hover:shadow-2xl transform hover:scale-105 transition-all group"
+              >
+                <PlayCircleFilledOutlinedIcon className="w-16 h-16 mx-auto mb-4" />
+                <h3 className="text-2xl font-bold mb-2">Quick Quiz</h3>
+                <p className="opacity-90">
+                  Test your skills quickly!
                 </p>
               </button>
             </div>
           </div>
+        )}
+
+        {gameMode === 'levels' && (
+          <LevelMap
+            levels={levels}
+            onLevelSelect={handleLevelSelect}
+            currentLevel={playerProgress.currentLevel}
+          />
         )}
 
         {gameMode === 'learn' && (
@@ -279,13 +476,20 @@ export default function LCMMasterGame() {
 
         {gameMode === 'quiz' && quizQuestions.length > 0 && (
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 space-y-4">
               <ScoreDisplay
                 currentScore={score}
                 highScore={highScore}
-                level={level}
+                level={currentLevel?.id || level}
                 correctAnswers={correctAnswers}
                 totalQuestions={quizQuestions.length}
+              />
+              <HintSystem
+                num1={quizQuestions[currentQuestionIndex].num1}
+                num2={quizQuestions[currentQuestionIndex].num2}
+                onUseHint={handleUseHint}
+                hintsRemaining={hintsRemaining}
+                hintCost={20}
               />
             </div>
             
@@ -300,6 +504,25 @@ export default function LCMMasterGame() {
               />
             </div>
           </div>
+        )}
+
+        {gameMode === 'minigame' && (
+          <DragDropGame
+            num1={num1}
+            num2={num2}
+            correctAnswer={lcm}
+            onComplete={(isCorrect) => {
+              if (isCorrect) {
+                setPlayerProgress(prev => ({ ...prev, coins: prev.coins + 50 }));
+                setCharacterMood('celebrating');
+                setCharacterMessage('Perfect! You earned 50 coins! 🪙');
+              }
+              setTimeout(() => {
+                setGameMode('learn');
+                setCharacterMessage('');
+              }, 2000);
+            }}
+          />
         )}
       </main>
 
