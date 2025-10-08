@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p ${PORT:-3000}",
     "lint": "eslint",
-    "postbuild": "next-sitemap"
+    
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
